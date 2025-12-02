@@ -16,7 +16,7 @@ This project was vibecoded with AI. It began as a dumb, fun idea: let a bunch of
 The wild part is that the models actually take advantage of their conditions. Bigger OpenRouter models (see config.py) started thinking ahead. Even open 4B–30B models adapted to the resource constraints and political pressure. (side note-> Qwen3-4B-Thinking-2507 steamrolled Nonreasoning Mistral 3.1/3.2 24B.).
 
 ## Requirements
-- Python 3.10+ with `httpx`, `pydantic`, `rich`, and `uvloop` (optional; skipped on Windows). Create a venv and `pip install -r requirements.txt` if you have one; otherwise `pip install httpx pydantic rich uvloop`.
+- Python 3.10+ with `httpx`, `pydantic`, `rich`, and `uvloop` (optional; skipped on Windows). Create a venv and `pip install httpx pydantic rich uvloop`.
 - Running Ollama server reachable at `http://localhost:11434` (override with `--ollama`). Pull any models you reference in `--models` beforehand.
 - Basic shell tools; no network calls are made beyond your Ollama endpoint.
 
