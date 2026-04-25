@@ -26,6 +26,63 @@ from decisions import (
 # --------- Parser helpers ----------------------------------------------------
 THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE)
 FACTION_FORM_RE = re.compile(r"Faction formed \((secret|public)\): \[(.+?)\]")
+
+def _is_response_truncated(raw: str) -> bool:
+    """
+    Check if the raw response appears to be truncated/cut off.
+    Returns True if the response looks incomplete.
+    """
+    if not raw:
+        return True
+    
+    # Check for common truncation patterns at the end
+    stripped = raw.strip()
+    
+    # If it ends with incomplete JSON patterns, it's likely truncated
+    if stripped.endswith('{') or stripped.endswith('['):
+        return True
+    if stripped.endswith(':'):
+        return True
+    if stripped.endswith(','):
+        return True
+    if stripped.endswith('"'):
+        # Could be valid, but check if it's an unclosed string
+        # Count quotes - odd number means unclosed string
+        if stripped.count('"') % 2 == 1:
+            return True
+    
+    # Check for unclosed braces/brackets
+    brace_count = 0
+    bracket_count = 0
+    in_string = False
+    escape_next = False
+    
+    for char in stripped:
+        if escape_next:
+            escape_next = False
+            continue
+        if char == '\\':
+            escape_next = True
+            continue
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if char == '{':
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+        elif char == '[':
+            bracket_count += 1
+        elif char == ']':
+            bracket_count -= 1
+    
+    # If braces or brackets are unbalanced, response is truncated
+    if brace_count != 0 or bracket_count != 0:
+        return True
+    
+    return False
 FACTION_LEFT_RE = re.compile(r"Faction:\s+([\w\-]+)\s+left\s+\[(.+?)\]\.")
 VOTE_MEMBER_RE = re.compile(
     r"Faction vote:\s+([\w\-]+)\s+(accepted|declined)\s+([\w\-]+)\s+(?:to|into)\s+\[([^\]]+)\]\s+\(reason:\s*(.*?)\)\.",
@@ -82,6 +139,11 @@ def extract_and_coerce_decision(raw: str) -> Tuple[Optional[str], Optional[Dict[
             i = start + 1
 
     notes: List[str] = []
+    
+    # Check if response appears to be truncated
+    if _is_response_truncated(raw):
+        notes.append("WARNING: Response appears to be truncated/cut off at the end")
+    
     for candidate in reversed(objs):
         try:
             dec = ModelDecision.model_validate(candidate)

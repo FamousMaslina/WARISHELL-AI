@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>WARISHELL-AI – Enhanced Viewer (Live)</title>
+  <style>
+    :root{--bg:#0b0e12;--card:#121821;--ink:#e6ecf3;--mut:#9bb0c3;--acc:#6aa9ff;--warn:#ffb366;--danger:#ff6b6b;--success:#51cf66}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    header{position:sticky;top:0;z-index:2;background:linear-gradient(180deg,#0f141b,#0b0e12);border-bottom:1px solid #1f2630;padding:12px 16px}
+    h1{margin:0;font-size:18px}
+    .sub{color:var(--mut);font-size:12px;margin-top:2px}
+    main{padding:16px;display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(400px,1fr))}
+    section{background:var(--card);border:1px solid #1e2630;border-radius:12px;padding:12px}
+    section h2{margin:2px 0 10px;color:var(--acc);font-size:15px;display:flex;align-items:center;gap:8px}
+    .badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600}
+    .badge.bankrupt{background:#441;color:#faa}
+    .badge.puppet{background:#442;color:#fc9}
+    .badge.overlord{background:#244;color:#9cf}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:6px 8px;border-bottom:1px solid #1b2330;vertical-align:top}
+    th{color:var(--mut);text-align:left;position:sticky;top:0;background:var(--card)}
+    td.num{text-align:right}
+    tr:hover td{background:#0f141c}
+    tr.bankrupt{background:#1a0f0f;border-left:3px solid var(--danger)}
+    tr.puppet{background:#1a150f;border-left:3px solid var(--warn)}
+    ul{margin:0;padding-left:18px;font-size:13px}
+    ul.compact{padding-left:14px}
+    ul.compact li{margin:3px 0}
+    .controls{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap}
+    .btn{background:#132033;border:1px solid #1e2b3b;border-radius:10px;color:#cfe6ff;padding:8px 10px;cursor:pointer;font-size:13px}
+    .btn:hover{background:#1a2d47;border-color:#2a3d57}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #1e2b3b;background:#132033;color:#bcd;font-size:12px}
+    .grid-full{grid-column:1/-1}
+    .mut{color:var(--mut)}
+    .scroll-box{max-height:40vh;overflow:auto;border:1px solid #1a2330;border-radius:6px;padding:8px;background:#0a0f15}
+    .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:8px}
+    .stat-card{background:#0f1620;border:1px solid #1a2430;border-radius:8px;padding:8px}
+    .stat-label{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+    .stat-value{font-size:16px;font-weight:600;margin-top:2px}
+    .relationship{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:13px}
+    .relationship .arrow{color:var(--acc);font-weight:bold}
+    footer{color:var(--mut);font-size:12px;padding:10px 16px 20px}
+    #turn.stale{border-color:#553; background:#221; color:#f7d7d7}
+    #status{margin-left:8px}
+    #status.ok{color:#9fe39f}
+    #status.err{color:#ff9f9f}
+    #status.wait{color:#9fb6c9}
+    .expander{cursor:pointer;user-select:none}
+    .expander::before{content:'▸ ';display:inline-block;transition:transform .2s}
+    .expander.expanded::before{transform:rotate(90deg)}
+    .detail-panel{margin-top:8px;padding:8px;background:#0a0f15;border-radius:6px;border:1px solid #1a2430}
+    .detail-panel.hidden{display:none}
+    /* tiny flag chips */
+    .flag{width:18px;height:12px;object-fit:cover;border:1px solid #1e2b3b;border-radius:2px;margin-right:6px;vertical-align:middle}
+    .flag.lg{width:20px;height:14px}
+    .name-row{display:flex;align-items:center;gap:8px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>WARISHELL-AI – Enhanced Viewer <span id="turn" class="pill">Turn –</span><span id="status" class="wait">waiting…</span></h1>
+  <div class="sub">
+    Pick your run folder (recommended) or just the <span class="mono">rt.json</span> file. This version re-acquires the file handle on every poll, so it keeps up even if the file is replaced between turns.
+    <div class="controls">
+      <button class="btn" id="pickDir">Open run folder</button>
+      <button class="btn" id="pickFile">Open rt.json</button>
+      <label class="mut">Interval <input id="ms" class="mono" type="number" min="250" step="250" value="1000" style="width:80px;margin-left:6px"> ms</label>
+      <button class="btn" id="pause">Pause</button>
+      <span id="path" class="mono" style="margin-left:auto"></span>
+      <span id="timestamp" style="margin-left:12px;color:#9fb6c9"></span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="grid-full">
+    <h2>Countries Overview</h2>
+    <div class="scroll-box" style="max-height:50vh">
+      <table id="countries">
+        <thead>
+          <tr>
+            <th>Country</th><th class="num">Gold</th><th class="num">Army</th>
+            <th class="num">Stability</th><th class="num">Tax%</th><th class="num">Pop(M)</th>
+            <th>Research</th><th>War Record</th><th>Status</th><th>Model</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Factions & Alliances</h2>
+    <div id="factions">—</div>
+  </section>
+
+  <section>
+    <h2>Puppet States & Overlords</h2>
+    <div id="puppets">—</div>
+  </section>
+
+  <section>
+    <h2>Loans & Debts</h2>
+    <div id="loans">—</div>
+  </section>
+
+  <section>
+    <h2>Bankrupt Nations</h2>
+    <div id="bankruptcies">—</div>
+  </section>
+
+  <section class="grid-full">
+    <h2>Recent News <span class="pill" id="newsCount">0</span></h2>
+    <div class="scroll-box" style="max-height:32vh">
+      <ul id="news" class="compact"><li>—</li></ul>
+    </div>
+  </section>
+
+  <section class="grid-full">
+    <h2>War Log <span class="pill" id="warCount">0</span></h2>
+    <div class="scroll-box" style="max-height:36vh">
+      <table id="wars">
+        <thead><tr>
+          <th>Turn</th><th>Attacker</th><th>Defender</th><th>Winner</th>
+          <th class="num">Gold</th><th>Resource</th><th class="num">Rounds</th><th>Cause</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="grid-full">
+    <h2>World Statistics</h2>
+    <div class="stat-grid" id="worldStats"></div>
+  </section>
+</main>
+
+<footer>
+  <strong>WARISHELL-AI Enhanced Viewer</strong> — Click country names to expand details (stocks, territory, war history). 
+  Chromium-based browsers recommended for File System Access API. Firefox: use "Open rt.json". 
+  Auto-refresh pauses when tab is hidden. News and wars show latest entries first (reverse chronological).
+</footer>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const tbody = sel => $(sel).querySelector('tbody');
+
+  let dirHandle = null;
+  let fileHandle = null;
+  let running = false;
+  let pollMs = 1000;
+  let lastSig = '';
+  let flagsDirHandle = null;
+  const flagUrlCache = new Map(); // filename -> {url,size,lastModified}  
+
+  const statusEl = $('#status');
+
+  $('#ms').addEventListener('change', () => {
+    const v = Math.max(250, Number($('#ms').value||1000));
+    pollMs = v;
+  });
+
+  $('#pause').addEventListener('click', () => {
+    if (running) { stop(); $('#pause').textContent = 'Resume'; }
+    else { start(); $('#pause').textContent = 'Pause'; }
+  });
+
+  $('#pickDir').addEventListener('click', async () => {
+    try {
+      dirHandle = await window.showDirectoryPicker({mode:'read'});
+      fileHandle = null;
+      flagsDirHandle = null;
+      flagUrlCache.clear();      
+      $('#path').textContent = '…/' + (dirHandle.name || '');
+      start();
+    } catch (e) { console.warn(e); }
+  });
+
+  $('#pickFile').addEventListener('click', async () => {
+    try {
+      const [fh] = await window.showOpenFilePicker({types:[{description:'JSON',accept:{'application/json':['.json']}}]});
+      fileHandle = fh; dirHandle = null;
+      $('#path').textContent = (fh.name || 'rt.json');
+      start();
+    } catch (e) { console.warn(e); }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stop(); else start();
+  });
+
+  function esc(s){ return String(s).replace(/[&<>"']/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[c])); }
+  
+  function kvPreview(d) {
+    const order = ['food','iron','oil','timber','rare_earths'];
+    return order.map(k => `${k}:${d?.[k] ?? 0}`).join(', ');
+  }
+
+  async function resolveFlagSrc(filename, fallbackUrl){
+    if (!filename) return fallbackUrl || null;
+    if (!dirHandle) return fallbackUrl || ('flags/'+filename); // works when hosted alongside run
+    try {
+      if (!flagsDirHandle) flagsDirHandle = await dirHandle.getDirectoryHandle('flags', {create:false});
+      const fh = await flagsDirHandle.getFileHandle(filename);
+      const file = await fh.getFile();
+      const cached = flagUrlCache.get(filename);
+      if (cached && cached.size === file.size && cached.lastModified === file.lastModified) return cached.url;
+      if (cached) URL.revokeObjectURL(cached.url);
+      const url = URL.createObjectURL(file);
+      flagUrlCache.set(filename, {url, size:file.size, lastModified:file.lastModified});
+      return url;
+    } catch { return fallbackUrl || null; }
+  }
+
+  async function buildFlagMap(countries, names){
+    const map = Object.create(null);
+    for (const n of names) {
+      const c = countries[n] || {};
+      const fileName = (c.flag ? (c.flag.name || c.flag) : (c.flag_url ? c.flag_url.split('/').pop() : null));
+      map[n] = await resolveFlagSrc(fileName, c.flag_url || null);
+    }
+    return map;
+  }
+
+  async function render(data){
+    if(!data) return;
+    $('#turn').textContent = 'Turn ' + (data.turn ?? '—');
+
+    const countries = data.countries || {};
+    const cks = Object.keys(countries).sort();
+    const flagMap = await buildFlagMap(countries, cks);
+    const rows = cks.map(name => {
+      const c = countries[name];
+      const r = c.research || {};
+      const popM = Math.max(1, Math.floor((c.population||0)/1_000_000));
+      const flagSrc = flagMap[name];
+      let statusBadges = '';
+      if (c.bankrupt) statusBadges += '<span class="badge bankrupt">BANKRUPT</span> ';
+      if (c.overlord) statusBadges += '<span class="badge puppet">Puppet</span> ';
+      
+      const warRec = `${c.wars_won||0}W/${c.wars_lost||0}L`;
+      
+      let rowClass = '';
+      if (c.bankrupt) rowClass = 'bankrupt';
+      else if (c.overlord) rowClass = 'puppet';
+      
+      const stockStr = kvPreview(c.stock||{});
+      const prodStr = kvPreview(c.production||{});
+      const detailId = `detail-${name.replace(/[^a-zA-Z0-9]/g,'')}`;
+      
+      return `<tr class="${rowClass}">
+        <td>
+          <div class="name-row">
+            ${flagSrc ? `<img class="flag" src="${esc(flagSrc)}" alt="${esc(name)} flag">` : ''}
+            <span class="expander" data-target="${detailId}">${esc(name)}</span>
+          </div>
+          <div id="${detailId}" class="detail-panel hidden">
+            <strong>Stocks:</strong> ${esc(stockStr)}<br>
+            <strong>Production/turn:</strong> ${esc(prodStr)}<br>
+            <strong>Territory:</strong> ${(c.surface_km2||0).toLocaleString()} km²<br>
+            ${c.overlord ? `<strong>Overlord:</strong> ${esc(c.overlord)} (since Turn ${c.puppet_since_turn||'?'})<br>` : ''}
+            ${c.last_war_turn >= 0 ? `<strong>Last war:</strong> vs ${esc(c.last_war_against||'?')} — ${esc(c.last_war_result||'?')} (Turn ${c.last_war_turn})<br>` : ''}
+            ${c.social_growth_bonus ? `<strong>Pop growth bonus:</strong> +${(c.social_growth_bonus*100).toFixed(1)}%<br>` : ''}
+          </div>
+        </td>
+        <td class="num">${esc(c.gold ?? 0)}</td>
+        <td class="num">${esc(c.army ?? 0)}</td>
+        <td class="num">${esc(c.stability ?? 0)}</td>
+        <td class="num">${esc(Math.round((c.tax_rate||0)*100))}</td>
+        <td class="num">${esc(popM)}</td>
+        <td class="mono">M${r.military||0}/E${r.economic||0}/I${r.industrial||0}/S${r.social||0}</td>
+        <td>${warRec}</td>
+        <td>${statusBadges || '—'}</td>
+        <td>${esc(c.model_alias||'')}</td>
+      </tr>`;
+    }).join('');
+    tbody('#countries').innerHTML = rows || `<tr><td colspan="10">—</td></tr>`;
+
+    document.querySelectorAll('.expander').forEach(el => {
+      el.addEventListener('click', function() {
+        const targetId = this.getAttribute('data-target');
+        const panel = document.getElementById(targetId);
+        if (panel) {
+          panel.classList.toggle('hidden');
+          this.classList.toggle('expanded');
+        }
+      });
+    });
+
+    const facs = data.factions || [];
+    $('#factions').innerHTML = facs.length ? `<ul class="compact">${
+      facs.map(f => `<li><b>[${esc(f.name)}]</b> — <span class="pill">${f.secret?'secret':'public'}</span><br>
+        Members: ${esc((f.members||[]).join(', '))}</li>`).join('')
+    }</ul>` : '—';
+
+    const puppetRelations = cks.filter(n => countries[n].overlord).map(n => {
+      const c = countries[n];
+      const since = c.puppet_since_turn ? ` (Turn ${c.puppet_since_turn})` : '';
+      return `<div class="relationship"><span>${esc(n)}</span> <span class="arrow">→</span> <span>${esc(c.overlord)}${since}</span></div>`;
+    }).join('');
+    $('#puppets').innerHTML = puppetRelations || '—';
+
+    const loanRelations = [];
+    cks.forEach(name => {
+      const c = countries[name];
+      if (c.loans_out) {
+        Object.entries(c.loans_out).forEach(([borrower, [amt, rate]]) => {
+          loanRelations.push({lender: name, borrower, amt, rate});
+        });
+      }
+    });
+    $('#loans').innerHTML = loanRelations.length ? `<ul class="compact">${
+      loanRelations.map(l => `<li><b>${esc(l.lender)}</b> → ${esc(l.borrower)}: ${l.amt} gold @ ${Math.round(l.rate*100)}%/turn</li>`).join('')
+    }</ul>` : '—';
+
+    const bankrupt = cks.filter(n => countries[n].bankrupt).map(n => {
+      const c = countries[n];
+      const since = c.bankruptcy_turn ? ` (Turn ${c.bankruptcy_turn})` : '';
+      return `<li><b>${esc(n)}</b>${since} — Gold: ${c.gold||0}, Streak: ${c.zero_gold_streak||0}</li>`;
+    }).join('');
+    $('#bankruptcies').innerHTML = bankrupt ? `<ul class="compact">${bankrupt}</ul>` : '—';
+
+    const news = data.news || [];
+    $('#newsCount').textContent = news.length;
+    $('#news').innerHTML = (news.length ? news.slice(-200).reverse().map(n=>`<li>${esc(n)}</li>`).join('') : '<li>—</li>');
+
+    const wars = data.war_log || [];
+    $('#warCount').textContent = wars.length;
+    tbody('#wars').innerHTML = (wars.length? wars.slice(-50).reverse().map(w => {
+      const res = w.res_taken || {};
+      const atkName = w.attacker || '';
+      const atkFlag = (countries[atkName] ? flagMap[atkName] : null);      
+      return `<tr>
+        <td>${esc(w.turn)}</td>
+        <td>${atkFlag ? `<img class="flag lg" src="${esc(atkFlag)}" alt="${esc(atkName)} flag"> ` : ''}<b>${esc(atkName)}</b></td>
+        <td>${esc(w.defender)}</td>
+        <td><b>${esc(w.winner)}</b></td>
+        <td class="num">${esc(w.gold)}</td>
+        <td>${esc(res.resource||'')}:${esc(res.qty||'')}</td>
+        <td class="num">${esc(w.rounds)}${w.capitulation?' 🏳':''}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(w.cause||'')}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="8">—</td></tr>');
+
+    const totalGold = cks.reduce((s,n) => s + (countries[n].gold||0), 0);
+    const totalPop = cks.reduce((s,n) => s + (countries[n].population||0), 0);
+    const totalArmy = cks.reduce((s,n) => s + (countries[n].army||0), 0);
+    const avgStability = cks.length ? Math.round(cks.reduce((s,n) => s + (countries[n].stability||0), 0) / cks.length) : 0;
+    const activeFactions = facs.length;
+    const activePuppets = cks.filter(n => countries[n].overlord).length;
+    const activeBankrupt = cks.filter(n => countries[n].bankrupt).length;
+    const activeLoans = loanRelations.length;
+
+    $('#worldStats').innerHTML = `
+      <div class="stat-card"><div class="stat-label">Nations</div><div class="stat-value">${cks.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Gold</div><div class="stat-value">${totalGold.toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Population</div><div class="stat-value">${Math.round(totalPop/1_000_000)}M</div></div>
+      <div class="stat-card"><div class="stat-label">Total Army</div><div class="stat-value">${totalArmy}</div></div>
+      <div class="stat-card"><div class="stat-label">Avg Stability</div><div class="stat-value">${avgStability}</div></div>
+      <div class="stat-card"><div class="stat-label">Factions</div><div class="stat-value">${activeFactions}</div></div>
+      <div class="stat-card"><div class="stat-label">Puppet States</div><div class="stat-value">${activePuppets}</div></div>
+      <div class="stat-card"><div class="stat-label">Active Loans</div><div class="stat-value">${activeLoans}</div></div>
+      <div class="stat-card"><div class="stat-label">Bankruptcies</div><div class="stat-value">${activeBankrupt}</div></div>
+      <div class="stat-card"><div class="stat-label">Total Wars</div><div class="stat-value">${wars.length}</div></div>
+    `;
+  }
+
+  async function getRtHandleFromDir() {
+    if (!dirHandle) return null;
+    try {
+      return await dirHandle.getFileHandle('rt.json');
+    } catch {
+      return null;
+    }
+  }
+
+  async function tickOnce(){
+    try {
+      if (dirHandle) fileHandle = await getRtHandleFromDir();
+      if (!fileHandle) {
+        statusEl.textContent = 'waiting for rt.json…';
+        statusEl.className = 'wait';
+        return;
+      }
+      const file = await fileHandle.getFile();
+      const sig = file.lastModified + ':' + file.size;
+      if (sig === lastSig) return;
+      lastSig = sig;
+
+      $('#timestamp').textContent = 'Updated: ' + new Date(file.lastModified).toLocaleTimeString();
+
+      const text = await file.text();
+      if (!text || text[0] !== '{') throw new Error('rt.json incomplete during write');
+      const data = JSON.parse(text);
+      await render(data);
+
+      $('#turn').classList.remove('stale');
+      statusEl.textContent = 'live';
+      statusEl.className = 'ok';
+    } catch (e) {
+      $('#turn').classList.add('stale');
+      statusEl.textContent = 'read error (retrying)';
+      statusEl.className = 'err';
+    }
+  }
+
+  async function loop(){
+    running = true;
+    while (running) {
+      await tickOnce();
+      await new Promise(r=>setTimeout(r, pollMs));
+    }
+  }
+
+  function start(){ if (!running) loop(); }
+  function stop(){ running = false; }
+})();
+</script>
+</body>
+</html>

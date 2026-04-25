@@ -2,14 +2,24 @@ from __future__ import annotations
 
 import json
 from typing import Any, Dict, List, Optional
-
+from console_utils import console
 import httpx
 
 
 class OllamaClient:
-    def __init__(self, base_url: str = "http://localhost:11434", timeout_s: int = 600, default_ctx: int = 8192):
+    def __init__(self, base_url: str = "http://localhost:11434", timeout_s: int = 1800, default_ctx: int = 8192):
         self.base = base_url.rstrip("/")
-        self.client = httpx.AsyncClient(base_url=self.base, timeout=timeout_s)
+        # Use timeout with separate read timeout that resets on token activity
+        # The read timeout is set high to allow slow token generation
+        self.client = httpx.AsyncClient(
+            base_url=self.base,
+            timeout=httpx.Timeout(
+                connect=10.0,      # Time to establish connection
+                read=timeout_s,    # Time between tokens (resets on each token)
+                write=30.0,        # Time to send request
+                pool=10.0,         # Time to get connection from pool
+            )
+        )
         # Optional default context window for all calls (maps to Ollama's num_ctx option)
         self.default_ctx = default_ctx
 
@@ -24,7 +34,7 @@ class OllamaClient:
         model: str,
         messages: List[Dict[str, str]],
         options: Optional[Dict[str, Any]] = None,
-        stream: bool = False,
+        stream: bool = True,  # Always use streaming for timeout reset on token activity
         keep_alive: Optional[Any] = 0,
     ) -> str:
         base_opts: Dict[str, Any] = dict(options) if options else {}
@@ -35,7 +45,7 @@ class OllamaClient:
             payload: Dict[str, Any] = {
                 "model": model,
                 "messages": messages,
-                "stream": stream,
+                "stream": True,  # Always stream to reset timeout on token activity
             }
             if opt_dict:
                 payload["options"] = opt_dict
@@ -58,7 +68,8 @@ class OllamaClient:
 
         for opt_dict in attempts:
             try:
-                r = await self.client.post("/api/chat", json=_build_payload(opt_dict))
+                # Use stream=True to get streaming response
+                r = await self.client.post("/api/chat", json=_build_payload(opt_dict), stream=True)
                 r.raise_for_status()
             except httpx.HTTPStatusError as e:
                 last_exc = e
@@ -74,22 +85,42 @@ class OllamaClient:
                 error_notes.append(note)
                 continue
 
-            if stream:
-                chunks: List[str] = []
+            # Stream the response - each token received resets the read timeout
+            chunks: List[str] = []
+            done_received = False
+            try:
                 async for line in r.aiter_lines():
                     if not line:
                         continue
                     try:
                         obj = json.loads(line)
+                        # Check for error in response
+                        if "error" in obj:
+                            raise httpx.HTTPStatusError(
+                                f"Ollama error: {obj['error']}",
+                                request=r.request,
+                                response=r,
+                            )
+                        # Check for end-of-stream signal
+                        if obj.get("done") is True:
+                            done_received = True
+                            break
                         content = obj.get("message", {}).get("content")
                         if content:
                             chunks.append(content)
-                    except Exception:
+                    except json.JSONDecodeError:
+                        # Skip lines that aren't valid JSON
                         pass
-                return "".join(chunks)
+            except httpx.ReadTimeout:
+                # Timeout during streaming - this is expected for slow models
+                # but should be rare with the high read timeout
+                raise
 
-            obj = r.json()
-            return obj.get("message", {}).get("content", "")
+            # Verify we got the complete response
+            if not done_received:
+                console.print("[yellow]Warning: Ollama stream ended without 'done: true' signal[/]")
+            
+            return "".join(chunks)
 
         if last_exc:
             for note in error_notes:

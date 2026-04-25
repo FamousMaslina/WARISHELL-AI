@@ -2,6 +2,12 @@
 
 WARISHELL runs a multi‑agent, turn‑based geopolitics sandbox where each nation is piloted by an LLM (via Ollama or OpenRouter) or by a human. It wires strict JSON prompts into a rich economy/war engine, captures every turn to disk, and ships a zero‑install HTML viewer for live dashboards.
 
+## V1.2 and up important note:
+- Regarding the '--context-window' flag:
+- For Ollama it sets num_ctx (the model's context window size)
+- For OpenRouter it sets max_context_tokens (total context budget)
+- For OpenAI API Compat it sets max_tokens (the output token limit)
+
 ## What it does
 - Spins up one agent per country and feeds them the exact same world state and system prompt each turn.
 - Enforces a typed decision schema (trade, research, alliances, wars, loans, infrastructure, aid bids, puppet control, tax, policy).
