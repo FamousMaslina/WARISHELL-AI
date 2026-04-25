@@ -23,7 +23,13 @@ The wild part is that the models actually take advantage of their conditions. Bi
 ## OpenRouter & Context
 - Agents tagged with `provider: "or"` in `config.AGENT_PRESETS`, or prefixed with `or:` on the CLI (for example `--models or:gpt-4o-mini`), will be routed through OpenRouter instead of Ollama.
 - Supply the OpenRouter endpoint via `--openrouter https://openrouter.ai/api/v1` and authentication via `--openrouter-key` (or `OPENROUTER_API_KEY`). OpenRouter usage without a key will fail early.
-- The shared context window (`WARISHELL_CONTEXT_WINDOW` or `--context-window`) now drives Ollama’s `num_ctx` and OpenRouter’s `max_context_tokens`, ensuring both providers receive the same `ctx` budget.
+- The shared context window (`WARISHELL_CONTEXT_WINDOW` or `--context-window`) now drives Ollama's `num_ctx` and OpenRouter's `max_context_tokens`, ensuring both providers receive the same `ctx` budget.
+
+## OpenAI-Compatible Endpoints
+- Use any OpenAI API-compatible endpoint (e.g., vLLM, LM Studio, LocalAI, official OpenAI) by prefixing models with `openai_compat:` (e.g., `--models "openai_compat:meta-llama/Llama-3.1-8B-Instruct"`).
+- Configure the endpoint with `--openai_compat_url` (default: `https://api.openai.com/v1`) and optional `--openai_compat_key` (or `OPENAI_COMPAT_API_KEY`).
+- Enable custom generation parameters (temperature, top_p, etc.) with `--openai_compat_use_custom_params`. When disabled (default), the endpoint uses its own defaults.
+- Example: `python main.py --models "openai_compat:llama-3.1-8b" --openai_compat_url "http://192.168.0.234:5559/v1" --context-window 131072 --seed 42`
 
 ## Quick start
 ```bash
