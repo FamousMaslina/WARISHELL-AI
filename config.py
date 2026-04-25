@@ -7,33 +7,40 @@ from typing import Dict, List, Optional, Tuple
 # ----- Agent presets & helpers ----------------------------------------------
 AGENT_PRESETS: List[Dict[str, str]] = [
     {
-        "model": "hf.co/unsloth/Qwen3-4B-Thinking-2507-GGUF:Q4_K_M ",
-        "alias": "Qwen3-4B-Thinking-2507",
+        "model": "default",
+        "alias": "Qwen3.5-122B-A10B",
         "nation": "Saproylia",
         "flag": "Saproylia.png",
-        "provider": "ollama",
+        "provider": "openai_compat",
     },
-    {
-        "model": "x-ai/grok-4.1-fast:free",
-        "alias": "Grok-4.1-Fast",
-        "nation": "Rescistan",
-        "flag": "recistan.png",
-        "provider": "or",
-    },
-    {
-        "model": "google/gemma-3-27b-it:free",
-        "alias": "Gemma3-27B",
-        "nation": "Alia",
-        "flag": "none.png",
-        "provider": "or",
-    },
-    {
-        "model": "openai/gpt-oss-20b:free",
-        "alias": "GPT-OSS 20B",
-        "nation": "Ochor",
-        "flag": "none.png",
-        "provider": "or",
-    },
+    # {
+    #     "model": "x-ai/grok-4.1-fast:free",
+    #     "alias": "Grok-4.1-Fast",
+    #     "nation": "Rescistan",
+    #     "flag": "recistan.png",
+    #     "provider": "or",
+    # },
+    # {
+    #     "model": "google/gemma-3-27b-it:free",
+    #     "alias": "Gemma3-27B",
+    #     "nation": "Alia",
+    #     "flag": "none.png",
+    #     "provider": "or",
+    # },
+    # {
+    #     "model": "openai/gpt-oss-20b:free",
+    #     "alias": "GPT-OSS 20B",
+    #     "nation": "Ochor",
+    #     "flag": "none.png",
+    #     "provider": "or",
+    # },
+    # {
+    #     "model": "meta-llama/Llama-3.1-8B-Instruct",
+    #     "alias": "Llama-3.1-8B-Instruct",
+    #     "nation": "Testia",
+    #     "flag": "none.png",
+    #     "provider": "openai_compat",
+    # },
     #{"model": "hf.co/MaziyarPanahi/Mistral-7B-Instruct-v0.3-GGUF:Q6_K", "alias": "Mistral-7B-Instruct-v0.3", "nation": "Ochor", "flag": "ochor.png"},
     #{"model": "PLAYER", "alias": "GPT5-Thinking-High", "nation": "Ecrain"},
     #{"model": "PLAYER2", "alias": "Gemini-2.5-Flash", "nation": "Giara"},
@@ -63,7 +70,7 @@ def provider_for_model(model: str) -> str:
 def parse_model_spec(raw: str) -> Tuple[str, str]:
     """
     Parse a model spec of the form `tag:model_name`. Defaults to Ollama if no tag.
-    Supported tags: 'ollama', 'or', 'openrouter'.
+    Supported tags: 'ollama', 'or', 'openrouter', 'openai_compat'.
     """
     spec = (raw or "").strip()
     if not spec:
@@ -76,6 +83,8 @@ def parse_model_spec(raw: str) -> Tuple[str, str]:
             return "or", remainder
         if tag in {"ollama", "ol", "o"} and remainder:
             return "ollama", remainder
+        if tag in {"openai_compat", "openai"} and remainder:
+            return "openai_compat", remainder
     provider = DEFAULT_PROVIDER
     return provider, spec
 

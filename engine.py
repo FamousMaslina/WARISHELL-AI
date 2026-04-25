@@ -61,6 +61,7 @@ from market import Market, MarketOrder
 from models import Agent, Alliance, Country, Faction, Research, World, build_domestic_factions
 from ollama_client import OllamaClient
 from openrouter_client import OpenRouterClient
+from openai_compat_client import OpenAICompatClient
 from parser_utils import (
     ALLIANCE_NEWS_RE,
     BUILD_NEWS_RE,
@@ -175,6 +176,9 @@ class Engine:
         ollama_url: str,
         openrouter_url: str,
         openrouter_key: Optional[str],
+        openai_compat_url: str,
+        openai_compat_key: Optional[str],
+        openai_compat_use_custom_params: bool,
         context_window: Optional[int],
         seed: int = 0,
     ):
@@ -188,7 +192,16 @@ class Engine:
             self.openrouter = OpenRouterClient(openrouter_url, openrouter_key, default_ctx=ctx)
         else:
             self.openrouter = None
-        self.provider_clients = {"ollama": self.ollama}
+        self.openai_compat = OpenAICompatClient(
+            openai_compat_url,
+            api_key=openai_compat_key,
+            default_ctx=ctx,
+            use_custom_params=openai_compat_use_custom_params,
+        )
+        self.provider_clients = {
+            "ollama": self.ollama,
+            "openai_compat": self.openai_compat,
+        }
         if self.openrouter:
             self.provider_clients["or"] = self.openrouter
         self.random = random.Random(seed)
@@ -198,6 +211,15 @@ class Engine:
         if not client:
             raise RuntimeError(f"No client configured for provider '{provider}'.")
         return client
+
+    @staticmethod
+    def _provider_label(provider: str) -> str:
+        """Get a human-readable label for a provider."""
+        if provider == "or":
+            return "OpenRouter"
+        if provider == "openai_compat":
+            return "OpenAI Compat"
+        return "Ollama"
 
     async def _stop_all_clients(self) -> None:
         for client in set(self.provider_clients.values()):
@@ -858,7 +880,7 @@ class Engine:
         except Exception:
             pass
 
-        provider_label = "OpenRouter" if agent.provider == "or" else "Ollama"
+        provider_label = self._provider_label(agent.provider)
         try:
             console.print(
                 f"[green]ENGINE:[/] Called model [{agent.alias or friendly_alias(agent.model)}] ({agent.model}) "
@@ -1369,7 +1391,7 @@ Return ONLY JSON matching: " + json.dumps(schema, ensure_ascii=False)
             {"role":"system","content":"You are a head of state under attack. Reply with ONLY valid JSON under key 'war_decision'."},
             {"role":"user","content": prompt},
         ]
-        provider_label = "OpenRouter" if agent.provider == "or" else "Ollama"
+        provider_label = self._provider_label(agent.provider)
         try:
             raw = await self._chat_model(agent, messages, options={"temperature":0.4,"top_p":0.9}, stream=False)
         except httpx.HTTPError as e:
@@ -1721,7 +1743,7 @@ Return ONLY JSON matching: " + json.dumps(schema, ensure_ascii=False)
             {"role":"user","content": user},
         ]
 
-        provider_label = "OpenRouter" if voter_agent.provider == "or" else "Ollama"
+        provider_label = self._provider_label(voter_agent.provider)
         console.print(
             f"[magenta]VOTE CALL[/] contacting {voter} using model: {voter_agent.model} ({provider_label}) ..."
         )

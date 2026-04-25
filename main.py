@@ -36,6 +36,24 @@ def parse_args() -> argparse.Namespace:
         help="OpenRouter API key (can also be provided via OPENROUTER_API_KEY).",
     )
     parser.add_argument(
+        "--openai_compat_url",
+        type=str,
+        default=os.environ.get("OPENAI_COMPAT_URL", "https://api.openai.com/v1"),
+        help="OpenAI-compatible endpoint base URL (default set via OPENAI_COMPAT_URL).",
+    )
+    parser.add_argument(
+        "--openai_compat_key",
+        type=str,
+        default=os.environ.get("OPENAI_COMPAT_API_KEY"),
+        help="OpenAI-compatible endpoint API key (optional, can also be provided via OPENAI_COMPAT_API_KEY).",
+    )
+    parser.add_argument(
+        "--openai_compat_use_custom_params",
+        action="store_true",
+        default=False,
+        help="Enable custom generation params (temp, top_p, etc.) for OpenAI-compatible endpoint.",
+    )
+    parser.add_argument(
         "--context-window",
         type=int,
         default=None,
@@ -76,12 +94,20 @@ async def main_async() -> None:
             console.print("Provide --openrouter-key or set OPENROUTER_API_KEY to continue.")
             sys.exit(1)
 
+    def ensure_openai_compat_configured(agent_list) -> None:
+        needing_openai_compat = [a for a in agent_list if a.provider == "openai_compat"]
+        if needing_openai_compat:
+            info = ", ".join(f"{a.country} ({a.model})" for a in needing_openai_compat)
+            console.print(f"[yellow]Info:[/] The following models use OpenAI-compatible endpoint: {info}")
+            console.print("Ensure --openai_compat_url is set correctly. API key is optional.")
+
     if resume_info:
         last_turn, snap_path = resume_info
         world, model_map = load_world_snapshot(snap_path)
         world.news = []
         agents = attach_agents_from_map(world, model_map, args.models[: len(world.countries)])
         ensure_openrouter_configured(agents)
+        ensure_openai_compat_configured(agents)
         eng = Engine(
             world,
             agents,
@@ -89,6 +115,9 @@ async def main_async() -> None:
             args.ollama,
             args.openrouter,
             args.openrouter_key,
+            args.openai_compat_url,
+            args.openai_compat_key,
+            args.openai_compat_use_custom_params,
             context_window,
             seed=args.seed,
         )
@@ -112,6 +141,7 @@ async def main_async() -> None:
         world.turn = 0
         agents = attach_agents(world, args.models[: len(names)])
         ensure_openrouter_configured(agents)
+        ensure_openai_compat_configured(agents)
 
         if out_dir.exists() and any(out_dir.iterdir()):
             console.print(f"[yellow]Warning:[/] output dir {out_dir} is not empty; data may be overwritten.")
@@ -122,6 +152,9 @@ async def main_async() -> None:
             args.ollama,
             args.openrouter,
             args.openrouter_key,
+            args.openai_compat_url,
+            args.openai_compat_key,
+            args.openai_compat_use_custom_params,
             context_window,
             seed=args.seed,
         )
